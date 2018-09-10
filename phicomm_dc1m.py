@@ -269,6 +269,10 @@ class PhicommDC1Switch(SwitchDevice):
         """Signal shutdown."""
         _LOGGER.warning('Shutdown')
         try:
+            for sock in self._connection_list:
+                if sock is not self.sock:
+                    sock.shutdown(2)
+                    sock.close()
             self.sock.close()
         except OSError as e:
             pass
@@ -283,43 +287,51 @@ class PhicommDC1Switch(SwitchDevice):
             fNeedBreak = False
 
             for sockA in self._connection_list:
-                _LOGGER.debug("PhicommDC1Switch find sockA %s, self.sock %s" , sockA, self.sock)
-                if sockA is self.sock:
-                    continue
-                elif sockA.getpeername() is None:
-                    _LOGGER.debug("PhicommDC1Switch find wrong sockA %s" , sockA)
-                elif sockA.getpeername()[0].find(self._ip) == -1:
-                    _LOGGER.debug("PhicommDC1Switch find other sockA %s" , sockA.getpeername())
-                    continue
-                else:
-                    _LOGGER.debug("PhicommDC1Switch find this sockA %s" , sockA.getpeername())
-                    try:
-                        if not self.control_payload:
-                            sockA.sendall(heart_msg)
-                        else:
-                            sockA.sendall(self.control_payload)
-                            self.control_payload = ""
-                            fNeedBreak = True
-
-                        self.iCount = 0
-                        _LOGGER.debug('PhicommDC1Switch Force send a heartbeat to %s', sockA.getpeername())
-                        break
-                    except OSError as e:
-                        _LOGGER.warning(
-                            "PhicommDC1Switch Force send a heartbeat got %s. Closing socket", e)
-                        try:
-                            sockA.shutdown(2)
-                            sockA.close()
-                        except OSError:
-                            pass
-                        self._connection_list.remove(sockA)
+                try:
+                    _LOGGER.debug("PhicommDC1Switch find sockA %s, self.sock %s" , sockA, self.sock)
+                    if sockA is self.sock:
                         continue
+                    elif sockA.getpeername() is None:
+                        _LOGGER.debug("PhicommDC1Switch find wrong sockA %s" , sockA)
+                    elif sockA.getpeername()[0].find(self._ip) == -1:
+                        _LOGGER.debug("PhicommDC1Switch find other sockA %s" , sockA.getpeername())
+                        continue
+                    else:
+                        _LOGGER.debug("PhicommDC1Switch find this sockA %s" , sockA.getpeername())
+                        try:
+                            if not self.control_payload:
+                                sockA.sendall(heart_msg)
+                            else:
+                                sockA.sendall(self.control_payload)
+                                self.control_payload = ""
+                                fNeedBreak = True
+
+                            self.iCount = 0
+                            _LOGGER.debug('PhicommDC1Switch Force send a heartbeat to %s', sockA.getpeername())
+                            break
+                        except OSError as e:
+                            _LOGGER.warning(
+                                "PhicommDC1Switch Force send a heartbeat got %s. Closing socket", e)
+                            try:
+                                sockA.shutdown(2)
+                                sockA.close()
+                            except OSError:
+                                pass
+                            self._connection_list.remove(sockA)
+                            continue
+                except OSError as e:
+                    _LOGGER.error(
+                        'sock except:%s sock:%s', e, sockA)
+                    self._connection_list.remove(sockA)
+                    #sockA.shutdown(2)
+                    sockA.close()
+                    continue
 
             if fNeedBreak is True:
                 return None
 
             read_sockets, write_sockets, error_sockets = select.select(
-                self._connection_list, [], [], 0)
+                self._connection_list, [], self._connection_list, 0)
             if len(self._connection_list) is 1:
                 self.iClientEmptyLogCount += 1
                 if self.iClientEmptyLogCount is 13:
@@ -329,109 +341,126 @@ class PhicommDC1Switch(SwitchDevice):
             else:
                 self.iClientEmptyLogCount = 0
 
+            for sockE in error_sockets:
+                if sockE in self._connection_list:
+                    _LOGGER.warning("PhicommDC1Switch (%s) disconnected" , sockE)
+                    self._connection_list.remove(sockE)
+                    sockE.close()
+
             for sock in read_sockets:
-                if sock is self.sock:
-                    _LOGGER.warning(
-                        "PhicommDC1Switch going to accept new connection")
-                    try:
-                        sockfd, addr = self.sock.accept()
-                        sockfd.settimeout(1)
-                        self._connection_list.append(sockfd)
+                _LOGGER.debug(
+                    "PhicommDC1Switch find read socket %s", sock)
+                try:
+                    if sock is self.sock:
                         _LOGGER.warning(
-                            "PhicommDC1Switch Client (%s, %s) connected" % addr)
+                            "PhicommDC1Switch going to accept new connection")
                         try:
-                            # sockfd.sendall(heart_msg)
-                            if not self.control_payload:
-                                sockfd.sendall(heart_msg)
-                            else:
-                                sockfd.sendall(self.control_payload)
-                                self.control_payload = ""
+                            sockfd, addr = self.sock.accept()
+                            sockfd.settimeout(1)
+                            self._connection_list.append(sockfd)
                             _LOGGER.warning(
-                                "PhicommDC1Switch Force send a heartbeat:%s", heart_msg)
-                        except OSError as e:
-                            _LOGGER.warning(
-                                "PhicommDC1Switch Client error %s", e)
-                            sock.shutdown(2)
-                            sock.close()
-                            self._connection_list.remove(sockfd)
-                            continue
-                    except OSError:
-                        _LOGGER.warning(
-                            "PhicommDC1Switch Client accept failed")
-                        continue
-                elif sock.getpeername()[0].find(self._ip) != -1:
-                    data = None
-                    try:
-                        _LOGGER.debug(
-                            "PhicommDC1Switch Processing Client %s", sock.getpeername())
-                        data = sock.recv(1024)
-                    except OSError as e:
-                        _LOGGER.warning("PhicommDC1Switch Processing Client error %s", e)
-                        try:
-                            sock.shutdown(2)
-                            sock.close()
-                        except OSError:
-                            pass
-                        self._connection_list.remove(sock)
-                        break
-                    if data:
-                        data = str(data, encoding="utf8")
-                        _LOGGER.debug("data: %s", data)
-                        jsonData = self.parseJsonData(data)
-                        _LOGGER.debug("jsondata: %s", jsonData)
-                        if jsonData is not None:
-                            # 状态包
+                                "PhicommDC1Switch Client (%s, %s) connected" % addr)
                             try:
-                                if str(jsonData['msg']) == 'set datapoint success':
-                                    _LOGGER.debug("set datapoint success")
- 
-                                if str(jsonData['status']) == '200':
-                                    i = int(
-                                        str(jsonData['result']['status']), base=2)
-                                    _LOGGER.debug('switch state i %d', i)
-                                    if i & 0b1 == 0:
-                                        self._state_attrs[ATTR_STATE] = False
-                                    else:
-                                        self._state_attrs[ATTR_STATE] = True
-                                    if i & 0b10 == 0 or self._state_attrs[ATTR_STATE] is False:
-                                        self._ports[0]._state_attrs[ATTR_STATE] = False
-                                    else:
-                                        self._ports[0]._state_attrs[ATTR_STATE] = True
-                                    if i & 0b100 == 0 or self._state_attrs[ATTR_STATE] is False:
-                                        self._ports[1]._state_attrs[ATTR_STATE] = False
-                                    else:
-                                        self._ports[1]._state_attrs[ATTR_STATE] = True
-                                    if i & 0b1000 == 0 or self._state_attrs[ATTR_STATE] is False:
-                                        self._ports[2]._state_attrs[ATTR_STATE] = False
-                                    else:
-                                        self._ports[2]._state_attrs[ATTR_STATE] = True
-                                    _LOGGER.debug('switch state is %s, 1:%s, 2:%s, 3:%s v:%sv, p:%sw',
-                                                  self._state_attrs[ATTR_STATE],
-                                                  self._ports[0]._state_attrs[ATTR_STATE], self._ports[
-                                                      1]._state_attrs[ATTR_STATE],
-                                                  self._ports[2]._state_attrs[ATTR_STATE], self._state_attrs[ATTR_V],
-                                                  self._state_attrs[ATTR_P])
- 
-                                    self._state_attrs.update(
-                                        {ATTR_I: str(jsonData['result']['I'])})
-                                    self._state_attrs.update(
-                                        {ATTR_V: str(jsonData['result']['V'])})
-                                    self._state_attrs.update(
-                                        {ATTR_P: str(jsonData['result']['P'])})
- 
-                            except KeyError as e:
-                                _LOGGER.warning(e)
+                                # sockfd.sendall(heart_msg)
+                                if not self.control_payload:
+                                    sockfd.sendall(heart_msg)
+                                else:
+                                    sockfd.sendall(self.control_payload)
+                                    self.control_payload = ""
+                                _LOGGER.warning(
+                                    "PhicommDC1Switch Force send a heartbeat:%s", heart_msg)
+                            except OSError as e:
+                                _LOGGER.warning(
+                                    "PhicommDC1Switch Client error %s", e)
+                                sock.shutdown(2)
+                                sock.close()
+                                self._connection_list.remove(sockfd)
+                                continue
+                        except OSError:
+                            _LOGGER.warning(
+                                "PhicommDC1Switch Client accept failed")
+                            continue
+                    elif sock.getpeername()[0].find(self._ip) != -1:
+                        data = None
+                        try:
+                            _LOGGER.debug(
+                                "PhicommDC1Switch Processing Client %s", sock.getpeername())
+                            data = sock.recv(1024)
+                        except OSError as e:
+                            _LOGGER.warning("PhicommDC1Switch Processing Client error %s", e)
+                            try:
+                                sock.shutdown(2)
+                                sock.close()
+                            except OSError:
                                 pass
+                            self._connection_list.remove(sock)
+                            break
+                        if data:
+                            data = str(data, encoding="utf8")
+                            _LOGGER.debug("data: %s", data)
+                            jsonData = self.parseJsonData(data)
+                            _LOGGER.debug("jsondata: %s", jsonData)
+                            if jsonData is not None:
+                                # 状态包
+                                try:
+                                    if str(jsonData['msg']) == 'set datapoint success':
+                                        _LOGGER.debug("set datapoint success")
+    
+                                    if str(jsonData['status']) == '200':
+                                        i = int(
+                                            str(jsonData['result']['status']), base=2)
+                                        _LOGGER.debug('switch state i %d', i)
+                                        if i & 0b1 == 0:
+                                            self._state_attrs[ATTR_STATE] = False
+                                        else:
+                                            self._state_attrs[ATTR_STATE] = True
+                                        if i & 0b10 == 0 or self._state_attrs[ATTR_STATE] is False:
+                                            self._ports[0]._state_attrs[ATTR_STATE] = False
+                                        else:
+                                            self._ports[0]._state_attrs[ATTR_STATE] = True
+                                        if i & 0b100 == 0 or self._state_attrs[ATTR_STATE] is False:
+                                            self._ports[1]._state_attrs[ATTR_STATE] = False
+                                        else:
+                                            self._ports[1]._state_attrs[ATTR_STATE] = True
+                                        if i & 0b1000 == 0 or self._state_attrs[ATTR_STATE] is False:
+                                            self._ports[2]._state_attrs[ATTR_STATE] = False
+                                        else:
+                                            self._ports[2]._state_attrs[ATTR_STATE] = True
+                                        _LOGGER.debug('switch state is %s, 1:%s, 2:%s, 3:%s v:%sv, p:%sw',
+                                                    self._state_attrs[ATTR_STATE],
+                                                    self._ports[0]._state_attrs[ATTR_STATE], self._ports[
+                                                        1]._state_attrs[ATTR_STATE],
+                                                    self._ports[2]._state_attrs[ATTR_STATE], self._state_attrs[ATTR_V],
+                                                    self._state_attrs[ATTR_P])
+    
+                                        self._state_attrs.update(
+                                            {ATTR_I: str(jsonData['result']['I'])})
+                                        self._state_attrs.update(
+                                            {ATTR_V: str(jsonData['result']['V'])})
+                                        self._state_attrs.update(
+                                            {ATTR_P: str(jsonData['result']['P'])})
+    
+                                except KeyError as e:
+                                    _LOGGER.warning(e)
+                                    pass
+                            else:
+                                _LOGGER.error(
+                                    'get switch plugs state error, %s, payload:%s', jsonData, heart_msg)
+                                return None
+                                break
                         else:
                             _LOGGER.error(
-                                'get switch plugs state error, %s, payload:%s', jsonData, heart_msg)
+                                'get deviceid plugs state error, payload:%s', heart_msg)
                             return None
                             break
-                    else:
-                        _LOGGER.error(
-                            'get deviceid plugs state error, payload:%s', heart_msg)
-                        return None
-                        break
+                except OSError as e:
+                    _LOGGER.error(
+                        'sock except:%s sock:%s', e, sock)
+                    self._connection_list.remove(sock)
+                    #sock.shutdown(2)
+                    sock.close()
+                    continue
+
         except KeyError as e:
         #except OSError as e:
             _LOGGER.error("update OSError: %s", e)
