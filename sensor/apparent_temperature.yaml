@@ -1,0 +1,5 @@
+﻿sensor:
+  - platform: apparent_temperature
+    name: at01
+    temperature_sensor: sensor.m1_temperature 
+    humidity_sensor: sensor.m1_humidity

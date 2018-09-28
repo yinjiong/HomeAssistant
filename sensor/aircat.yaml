@@ -1,0 +1,44 @@
+﻿sensor:
+  - platform: aircat
+    name: m1
+    mac: {'MAC_A':'brightness_m1a','MAC_B':'brightness_m1b'}
+    brightness_force_update: True
+
+
+input_select:
+  brightness_m1a:
+    name: 亮度
+    options:
+      - 关闭
+      - 夜间
+      - 白天
+  brightness_m1b:
+    name: 亮度
+    options:
+      - 关闭
+      - 夜间
+      - 白天
+
+
+group:
+  m1a:
+    name: 客厅M1
+    view: no
+    entities:
+      - sensor.m1_hcho
+      - sensor.m1_humidity
+      - sensor.m1_pm25
+      - sensor.m1_temperature
+      - sensor.at01
+      - input_select.brightness_m1a
+  m1b:
+    name: 卧室M1
+    view: no
+    entities:
+      - sensor.m12_hcho
+      - sensor.m12_humidity
+      - sensor.m12_pm25
+      - sensor.m12_temperature  
+      - sensor.at02
+      - input_select.brightness_m1b
+
