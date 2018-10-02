@@ -1,0 +1,8 @@
+﻿climate:
+  - platform: xiaomi_miio_s
+    name: bedroom AC
+    host: !secret Xiaomi_ACP_ip
+    token: !secret Xiaomi_ACP_token
+    target_sensor: sensor.at02
+    scan_interval: 10
+    auto_switch: input_boolean.bedroom_auto_ac_switch
