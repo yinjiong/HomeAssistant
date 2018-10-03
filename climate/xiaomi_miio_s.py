@@ -81,6 +81,7 @@ SERVICE_LEARN_COMMAND = 'xiaomi_miio_learn_command'
 SERVICE_SEND_COMMAND = 'xiaomi_miio_send_command'
 SERVICE_LEARN_AND_USE_COMMAND = 'xiaomi_miio_learn_and_use_command'
 SERVICE_SEND_COMMAND_BY_KEY = 'xiaomi_miio_send_command_by_key'
+SERVICE_RELOAD_IR_CONFIG_FILE = 'xiaomi_miio_reload_ir_config_file'
 
 SERVICE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
@@ -107,6 +108,10 @@ SERVICE_SCHEMA_SEND_COMMAND = SERVICE_SCHEMA.extend({
 SERVICE_SCHEMA_SEND_COMMAND_BY_KEY = SERVICE_SCHEMA.extend({
     vol.Required(CONF_KEY): cv.string,
 })
+SERVICE_SCHEMA_RELOAD_IR_CONFIG_FILE = None #SERVICE_SCHEMA.extend({
+    #vol.Optional(CONF_IR_CONFIG_FILE_PATH,default="/config/climate.miio.json"): cv.string,
+#})
+
 SERVICE_TO_METHOD = {
     SERVICE_LEARN_COMMAND: {'method': 'async_learn_command',
                             'schema': SERVICE_SCHEMA_LEARN_COMMAND},
@@ -116,6 +121,8 @@ SERVICE_TO_METHOD = {
                            'schema': SERVICE_SCHEMA_LEARN_AND_USE_COMMAND},
     SERVICE_SEND_COMMAND_BY_KEY: {'method': 'async_send_command_BY_KEY',
                            'schema': SERVICE_SCHEMA_SEND_COMMAND_BY_KEY},
+    SERVICE_RELOAD_IR_CONFIG_FILE: {'method': 'async_reload_IR_config_file',
+                           'schema': SERVICE_SCHEMA_RELOAD_IR_CONFIG_FILE},
 }
 
 # pylint: disable=unused-argument
@@ -688,3 +695,15 @@ class XiaomiAirConditioningCompanion(ClimateDevice):
                     self._current_swing_mode = command['swing']
                     self._target_temperature = int(command['t'])
         _LOGGER.debug('IR result:%s, operation:%s, fan_mode:%s, swing_mode:%s, temperature:%s',result, command['mode'],command['fan'],command['swing'],command['t'])
+
+    @asyncio.coroutine
+    def async_reload_IR_config_file(self):
+        try:
+            with open(self._ir_config_file_path,'r',-1,"utf-8") as f:
+                jData = json.load(f)
+                XiaomiAirConditioningCompanion.IR_CODES_MAP = dict(jData['command'])
+        except IOError:
+            _LOGGER.warning("can not read ir config file:%s",self._ir_config_file_path)
+        except ValueError:
+            _LOGGER.warning("can not decode ir config file:%s",self._ir_config_file_path)
+ 
