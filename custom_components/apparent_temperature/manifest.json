@@ -1,0 +1,8 @@
+{
+  "domain": "apparent_temperature",
+  "name": "at",
+  "documentation": "https://www.example.com",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": []
+}
