@@ -1,7 +1,7 @@
 {
   "domain": "aircat",
   "name": "m1",
-  "documentation": "https://www.example.com",
+  "documentation": "https://github.com/yinjiong/HomeAssistant/tree/master/custom_components",
   "dependencies": [],
   "codeowners": [],
   "requirements": []

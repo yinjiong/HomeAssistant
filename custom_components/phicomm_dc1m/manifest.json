@@ -1,7 +1,7 @@
 {
   "domain": "phicomm_dc1m",
   "name": "dc1",
-  "documentation": "https://www.example.com",
+  "documentation": "https://github.com/yinjiong/HomeAssistant/tree/master/custom_components",
   "dependencies": [],
   "codeowners": [],
   "requirements": []

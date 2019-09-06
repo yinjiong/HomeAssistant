@@ -1,0 +1,11 @@
+{
+  "domain": "xiaomi_miio_airconditioningcompanion",
+  "name": "Xiaomi Mi and Aqara Air Conditioning Companion",
+  "documentation": "https://github.com/yinjiong/HomeAssistant/tree/master/custom_components",
+  "requirements": [
+    "construct==2.9.45",
+    "python-miio==0.4.5"
+  ],
+  "dependencies": ["sensor"],
+  "codeowners": ["@syssi"]
+}
