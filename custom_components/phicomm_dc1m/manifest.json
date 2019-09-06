@@ -1,0 +1,8 @@
+{
+  "domain": "phicomm_dc1m",
+  "name": "dc1",
+  "documentation": "https://www.example.com",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": []
+}

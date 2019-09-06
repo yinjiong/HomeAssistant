@@ -1,0 +1,8 @@
+{
+  "domain": "aircat",
+  "name": "m1",
+  "documentation": "https://www.example.com",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": []
+}
